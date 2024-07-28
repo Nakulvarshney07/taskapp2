@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:outtaskapp/temprorytaskscreen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 import 'compulsorytaskprovider.dart';
-import 'package:home_widget/home_widget.dart';
 import 'package:path_provider/path_provider.dart';
+
 
 const String appGroupId = 'com.example.outtaskapp'; // Add from here
 const String iOSWidgetName = 'MotivationWidget';
@@ -19,35 +20,44 @@ class CompulsoryTaskScreen extends StatefulWidget {
   State<CompulsoryTaskScreen> createState() => _CompulsoryTaskScreenState();
 }
 
-void updateWidget(bool allcomplete)async {
-  final directory = await getApplicationDocumentsDirectory();
-  final path = directory.path;
-  if (allcomplete) {
 
-    final filepath = '$path/images/complete.png';
-    var file = File(filepath);
-      Image.file(file);
-      print(file.path);
-      // HomeWidget.saveWidgetData<String>('filename', filepath);
-  } else {
-    final filepath = '$path/images/img.png';
-    var file = File(filepath);
-
-      Image.file(file);
-      print(file.path);
-      print(file.existsSync());
-    // HomeWidget.saveWidgetData<String>('filename', filepath);
-  }
-  // HomeWidget.updateWidget(
-  //   iOSName: iOSWidgetName,
-  //   androidName: androidWidgetName,
-  // );
-}
 
 class _CompulsoryTaskScreenState extends State<CompulsoryTaskScreen> {
+  Future<File> getImageFileFromAssets(String path) async {
+    final byteData = await rootBundle.load('assets/$path');
+
+    Directory appDocDir = await getApplicationDocumentsDirectory();
+    String imagesAppDirectory = appDocDir.path;
+    final file =
+    await File('$imagesAppDirectory/$path').create(recursive: true);
+
+    await file.writeAsBytes(byteData.buffer
+        .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes));
+
+    return file;
+  }
+  void updateWidget(bool allcomplete) async {
+
+    // HomeWidget.saveWidgetData<String>('filename', filepath);
+
+    if(allcomplete){
+    File file = await getImageFileFromAssets("img.png");
+    HomeWidget.saveWidgetData<String>("filename", file.path);
+    }
+    else{
+      File file = await getImageFileFromAssets("complete.png");
+      HomeWidget.saveWidgetData<String>("filename", file.path);
+    }
+    HomeWidget.updateWidget(
+      iOSName: iOSWidgetName,
+      androidName: androidWidgetName,
+    );
+  }
   final TextEditingController _controller = TextEditingController();
   int count = 0;
   int completedtasks = 0;
+  final _globalKey = GlobalKey();
+  String? imagePath;
 
   @override
   void initState() {
@@ -55,25 +65,28 @@ class _CompulsoryTaskScreenState extends State<CompulsoryTaskScreen> {
     getData();
   }
 
+
   @override
   Widget build(BuildContext context) {
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.white24, // Status bar color
-      statusBarIconBrightness: Brightness.light, // Light icons for status bar
-    ));
+    final width = MediaQuery.of(context).size.width;
     return Scaffold(
       bottomNavigationBar: BottomNavigationBar(
+        unselectedFontSize: 14,
+        selectedLabelStyle: TextStyle(color: Colors.grey),
+        unselectedLabelStyle: TextStyle(color: Colors.grey),
         items: const [
           BottomNavigationBarItem(
               icon: Icon(
                 Icons.task_alt,
                 color: Colors.black,
               ),
-              label: "Today's Task"),
+              label: "Today's Task"
+              ),
           BottomNavigationBarItem(
               icon: Icon(
                 Icons.local_fire_department_rounded,
                 color: Colors.blue,
+                size: 30,
               ),
               label: "Daily Task")
         ],
@@ -136,6 +149,7 @@ class _CompulsoryTaskScreenState extends State<CompulsoryTaskScreen> {
                                       opacity: task.showDeleteOpt ? 0.4 : 1,
                                       child: Container(
                                         padding: const EdgeInsets.all(10),
+
                                         decoration: BoxDecoration(
                                             color: task.isComplete
                                                 ? Color(0xBB09ADEB)
@@ -147,13 +161,16 @@ class _CompulsoryTaskScreenState extends State<CompulsoryTaskScreen> {
                                             Row(
                                               children: [
                                                 Checkbox(
-                                                  activeColor: Colors.yellowAccent,
+                                                    activeColor:
+                                                        Colors.yellowAccent,
                                                     checkColor: Colors.black,
                                                     value: isDone,
                                                     onChanged: (value) async {
+                                                      final prefs = await SharedPreferences.getInstance();
+                                                      final email = prefs.getString('email');
                                                       final docref =
                                                           db.collection(
-                                                              "username");
+                                                              email.toString());
                                                       task.isComplete =
                                                           !task.isComplete;
                                                       await docref
@@ -165,14 +182,20 @@ class _CompulsoryTaskScreenState extends State<CompulsoryTaskScreen> {
                                                       getData();
                                                     }),
                                                 const SizedBox(
-                                                  width: 10,
+                                                  width: 5,
                                                 ),
-                                                Text(
-                                                  task.title,
-                                                  style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      fontSize: 18),
+                                                SizedBox(
+                                                  width: (width/2)-90,
+                                                  child:Text(
+                                                    task.title,
+                                                    style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        fontSize: 18, overflow: TextOverflow.ellipsis),
+                                                    softWrap: true,
+                                                    maxLines: 2,
+
+                                                  ),
                                                 ),
                                               ],
                                             ),
@@ -181,19 +204,24 @@ class _CompulsoryTaskScreenState extends State<CompulsoryTaskScreen> {
                                               height: 100,
                                               child: task.imagePath != null
                                                   ? Image.file(
-                                                      File(task.imagePath!, ),
-                                                      fit: BoxFit.contain,
+                                                      File(
+                                                        task.imagePath!,
+                                                      ),
+                                                      fit: BoxFit.cover,
                                                       errorBuilder:
                                                           (BuildContext context,
                                                               Object error,
                                                               StackTrace?
                                                                   stackTrace) {
                                                         return Image.asset(
-                                                            "images/icon.jpg");
+                                                            "assets/icon.jpg", width: 100, height: 100, fit: BoxFit.cover,);
                                                       },
                                                     )
                                                   : Image.asset(
-                                                      "images/icon.jpg", fit: BoxFit.contain,),
+                                                      "assets/icon.jpg",
+                                                      width: 100, height: 100,
+                                                      fit: BoxFit.cover,
+                                                    ),
                                             ),
                                             const SizedBox(
                                               height: 10,
@@ -206,7 +234,8 @@ class _CompulsoryTaskScreenState extends State<CompulsoryTaskScreen> {
                                                       fontSize: 20)),
                                             if (!isDone)
                                               Row(
-                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
                                                 children: [
                                                   Text(
                                                     "😴 ${task.streak + 1}",
@@ -222,7 +251,7 @@ class _CompulsoryTaskScreenState extends State<CompulsoryTaskScreen> {
                                                         color: Colors.black,
                                                         fontSize: 18,
                                                         fontWeight:
-                                                        FontWeight.w800),
+                                                            FontWeight.w800),
                                                   ),
                                                 ],
                                               )
@@ -325,8 +354,9 @@ class _CompulsoryTaskScreenState extends State<CompulsoryTaskScreen> {
   void getData() async {
     count = 0;
     completedtasks = 0;
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    final docref = db.collection("username");
+    final prefs = await SharedPreferences.getInstance();
+    final email = prefs.getString('email');
+    final docref = db.collection(email.toString());
     final val = Provider.of<CompulsoryTaskProvider>(context, listen: false);
     val.removeAll();
     await docref.get().then(

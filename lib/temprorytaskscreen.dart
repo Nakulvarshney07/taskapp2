@@ -32,6 +32,7 @@ class _TaskScreenState extends State<TaskScreen> {
   @override
   void initState(){
     super.initState();
+
     getData();
     _intentSub = ReceiveSharingIntent.instance.getMediaStream().listen((value) {
       setState(() {
@@ -67,8 +68,12 @@ class _TaskScreenState extends State<TaskScreen> {
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
         bottomNavigationBar: BottomNavigationBar(
+          unselectedFontSize: 14,
+          selectedLabelStyle: TextStyle(color: Colors.grey),
+          unselectedLabelStyle: TextStyle(color: Colors.grey),
           items: const [
             BottomNavigationBarItem(
                 icon: Icon(Icons.task_alt, color: Colors.blue),
@@ -105,20 +110,20 @@ class _TaskScreenState extends State<TaskScreen> {
                     bool isDone = task.isComplete;
                     return GestureDetector(
                       onTap: ()async{
+                        final prefs = await SharedPreferences.getInstance();
+                        final email = prefs.getString('email');
                         String subtitle= task.Subtitle;
                        if(subtitle.contains("https://youtu")){
                          if(subtitle.contains("https://youtu.be/")){
                            String fullLink = subtitle;
                            String videoLink = fullLink.substring(17);
-                           print(videoLink);
-                          await db.collection("username").doc("youtube").set({ 'src': videoLink});
+                          await db.collection(email.toString()).doc("youtube").set({ 'src': videoLink});
                          }
                          else{
                            String fullLink = subtitle;
                            String rawvideoLink = fullLink.split("v=")[1];
                            String videoLink = rawvideoLink.split("&")[0]+"?"+rawvideoLink.split("&")[1];
-                           print(videoLink);
-                          await db.collection("username").doc("youtube").set({ 'src': videoLink});
+                          await db.collection(email.toString()).doc("youtube").set({ 'src': videoLink});
                          }
                         await _launchUrl();
                        }
@@ -139,8 +144,10 @@ class _TaskScreenState extends State<TaskScreen> {
                               activeColor: Colors.white,
                               value: isDone,
                               onChanged: (val)async {
+                                final prefs = await SharedPreferences.getInstance();
+                                final email = prefs.getString('email');
                                 task.isComplete = !task.isComplete;
-                                final docref = db.collection("username").doc("Daily Task").collection(DateFormat.yMMMMd().format(DateTime.now()));
+                                final docref = db.collection(email.toString()).doc("Daily Task").collection(DateFormat.yMMMMd().format(DateTime.now()));
                                await docref.doc(task.time.toString()).update({"done": task.isComplete});
                                 value.notifyProvider();
                               },
@@ -216,11 +223,18 @@ void showBottomsheet(String? subtitle){
 }
 
   void getData()async{
-
+    final val= Provider.of<TemprorytaskProvider>(context, listen: false);
+    val.removeAll();
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    final diff = BigInt.parse(DateTime.timestamp().millisecondsSinceEpoch.toString())- BigInt.parse(prefs.get("today").toString());
-    final docref2 = db.collection("username");
+    final email = prefs.getString('email');
+    BigInt difference = BigInt.parse(prefs.get("today").toString())%BigInt.from(86400000);
+    print(DateTime.now());
+    final diff = BigInt.parse(DateTime.timestamp().millisecondsSinceEpoch.toString())- BigInt.parse(prefs.get("today").toString())+difference+BigInt.from(19800000);
+    print(diff); print(difference);
+    final docref2 = db.collection(email.toString());
     if(diff >=BigInt.from(86400000) && diff<BigInt.from(172800000)){
+      print(diff);
+      print("i am in if");
       prefs.setString("today", DateTime.timestamp().millisecondsSinceEpoch.toString());
       await docref2.get().then(
             (querySnapshot) {
@@ -246,17 +260,41 @@ void showBottomsheet(String? subtitle){
         },
         onError: (e) => print("Error completing: $e"),
       );
+      db.collection(email.toString()).doc("Daily Task").delete().then((value) =>
+            val.removeAll(),
+          onError: (e) => print("Error updating document $e"),);
+        return;
+
+    }else if(diff>BigInt.from(172800000)){
+      prefs.setString("today", DateTime.timestamp().millisecondsSinceEpoch.toString());
+      print(diff);
+      print("i am in the else");
+      await docref2.get().then(
+            (querySnapshot) {
+          for (var docSnapshot in querySnapshot.docs) {
+            if (docSnapshot.id != "youtube") {
+                docref2.doc(docSnapshot.id).update({
+                  'done' : false,
+                  'streak': 0,
+                  'dayCount': 1,
+                });
+
+            }
+          }
+        },
+        onError: (e) => print("Error completing: $e"),
+      );
     }
-    final val= Provider.of<TemprorytaskProvider>(context, listen: false);
+
     if(diff >=BigInt.from(86400000)){
       prefs.setString("today", DateTime.timestamp().millisecondsSinceEpoch.toString());
-       db.collection("username").doc("Daily Task").delete().then((value) =>
+       db.collection(email.toString()).doc("Daily Task").delete().then((value) =>
            val.removeAll(),
          onError: (e) => print("Error updating document $e"),);
        return;
     }
-    val.removeAll();
-  final docref = db.collection("username").doc("Daily Task").collection(DateFormat.yMMMMd().format(DateTime.now()));
+
+  final docref = db.collection(email.toString()).doc("Daily Task").collection(DateFormat.yMMMMd().format(DateTime.now()));
   await docref.get().then(
           (querySnapshot) {
         for (var docSnapshot in querySnapshot.docs) {
@@ -265,6 +303,7 @@ void showBottomsheet(String? subtitle){
       },
       onError: (e) => print("Error completing: $e"),
     );
+  val.notifyProvider();
   }
 
 }

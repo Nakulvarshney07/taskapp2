@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:outtaskapp/temproryTask.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 final db = FirebaseFirestore.instance;
 
@@ -9,9 +10,12 @@ class TemprorytaskProvider with ChangeNotifier{
   List<Temprorytask> _tempTasks=[];
    List<Temprorytask> get tempTasks =>_tempTasks;
 
-   final docref= db.collection("username").doc("Daily Task").collection(DateFormat.yMMMMd().format(DateTime.now()));
+
 
    void addTask(String value,String value2)async{
+     final prefs = await SharedPreferences.getInstance();
+     final email = prefs.getString('email');
+     final docref= db.collection(email.toString()).doc("Daily Task").collection(DateFormat.yMMMMd().format(DateTime.now()));
   final time = DateTime.timestamp().microsecondsSinceEpoch;
     final newTask=Temprorytask(id: DateTime.now().toString(), title: value,Subtitle: value2, time: time, isComplete: false);
     Map<String, dynamic> data = {
@@ -38,7 +42,10 @@ class TemprorytaskProvider with ChangeNotifier{
     notifyListeners();
   }
 
-  void removeTask(int index){
+  void removeTask(int index)async{
+    final prefs = await SharedPreferences.getInstance();
+    final email = prefs.getString('email');
+    final docref= db.collection(email.toString()).doc("Daily Task").collection(DateFormat.yMMMMd().format(DateTime.now()));
      docref.doc(_tempTasks[index].time.toString()).delete();
     _tempTasks.removeAt(index);
     notifyListeners();

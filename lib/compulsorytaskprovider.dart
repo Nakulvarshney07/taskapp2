@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'CompulsoryTask.dart';
 
 final db = FirebaseFirestore.instance;
@@ -10,9 +11,12 @@ class CompulsoryTaskProvider with ChangeNotifier {
   List<CompulsoryTask> _tasks = [];
   List<CompulsoryTask> get tasks => _tasks;
 
-  final docref= db.collection("username");
 
-  void addTask(String title, [String? imagePath]) {
+
+  void addTask(String title, [String? imagePath])async {
+    final prefs = await SharedPreferences.getInstance();
+    final email = prefs.getString('email');
+     final docref= db.collection(email.toString());
     final time = DateTime.timestamp().millisecondsSinceEpoch;
     final newTask = CompulsoryTask(id: DateTime.now().toString(), title: title, imagePath: imagePath, streak: 0, time: time, isComplete: false);
     Map<String, dynamic> data = {
@@ -37,11 +41,15 @@ class CompulsoryTaskProvider with ChangeNotifier {
   void removeAll(){
     _tasks=[];
   }
+
   void notifyProvider(){
     notifyListeners();
   }
 
-  void removeTask(int index) {
+  void removeTask(int index)async{
+    final prefs = await SharedPreferences.getInstance();
+    final email = prefs.getString('email');
+    final docref= db.collection(email.toString());
     docref.doc(_tasks[index].time.toString()).delete();
     _tasks.removeAt(index);
     notifyListeners();
